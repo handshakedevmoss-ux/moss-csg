@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ColorScheme Studio - 70:25:5 Webカラー設計ツール (Mood & Tinted Gray)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- html2pdf.js for client-side PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    }
+    .color-wheel-canvas {
+      cursor: crosshair;
+      border-radius: 50%;
+      touch-action: none;
+    }
+    .color-transition {
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+    #toast {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i data-lucide="palette" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white leading-tight">ColorScheme Studio</h1>
+          <p class="text-xs text-slate-400">70:25:5 Web黄金比率 × ムード × グレースケール</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3">
+        <button id="randomize-btn" class="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
+          <i data-lucide="shuffle" class="w-3.5 h-3.5"></i>
+          ランダム生成
+        </button>
+        <button id="export-pdf-btn" class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition active:scale-95">
+          <i data-lucide="file-down" class="w-4 h-4"></i>
+          PDF仕様書出力
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    
+    <!-- トップコントロール：メインカラー設定 & カラーホイール -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- 左：メインカラー・調和・ムード設定パネル -->
+      <section class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between space-y-5">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i>
+              カラーコントローラー
+            </h2>
+            <span class="text-xs px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">Primary Input</span>
+          </div>
+
+          <!-- メインカラー入力 -->
+          <div class="flex items-center gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
+            <input type="color" id="main-color-picker" value="#3B82F6" class="w-12 h-12 rounded-lg cursor-pointer bg-transparent border-0 p-0">
+            <div class="flex-1">
+              <label for="main-hex-input" class="block text-xs font-medium text-slate-400 mb-0.5">メインカラー (25%) HEX</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500 font-mono text-sm">#</span>
+                <input type="text" id="main-hex-input" value="3B82F6" maxlength="6" class="w-full pl-7 pr-3 py-1.5 bg-slate-900 rounded-lg text-white font-mono text-sm font-semibold tracking-wider uppercase border border-slate-700 focus:outline-none focus:border-indigo-500 transition">
+              </div>
+            </div>
+          </div>
+
+          <!-- ムード (ニュアンス・テイスト) 選択 -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+                ムード・ニュアンス (Mood)
+              </label>
+              <span id="current-mood-tag" class="text-[10px] text-slate-400">鮮やか・クリア</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              <button type="button" data-mood="vibrant" class="mood-btn active px-2.5 py-2 rounded-lg border border-indigo-500 bg-indigo-600/20 text-indigo-300 font-medium text-left">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Vibrant</span>
+                  <i data-lucide="check" class="w-3 h-3"></i>
+                </div>
+                <div class="text-[10px] text-slate-400">鮮やか・先進的</div>
+              </button>
+              <button type="button" data-mood="pastel" class="mood-btn px-2.5 py-2 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Soft / Pastel</span>
+                  <i data-lucide="check" class="w-3 h-3 hidden"></i>
+                </div>
+                <div class="text-[10px] text-slate-400">柔らかな優しさ</div>
+              </button>
+              <button type="button" data-mood="monochrome" class="mood-btn px-2.5 py-2 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Monochrome</span>
+                  <i data-lucide="check" class="w-3 h-3 hidden"></i>
+                </div>
+                <div class="text-[10px] text-slate-400">同系色・ミニマル</div>
+              </button>
+              <button type="button" data-mood="luxury" class="mood-btn px-2.5 py-2 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Deep / Luxury</span>
+                  <i data-lucide="check" class="w-3 h-3 hidden"></i>
+                </div>
+                <div class="text-[10px] text-slate-400">深み・高級感</div>
+              </button>
+              <button type="button" data-mood="warm" class="mood-btn px-2.5 py-2 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left col-span-2 sm:col-span-1">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Warm / Organic</span>
+                  <i data-lucide="check" class="w-3 h-3 hidden"></i>
+                </div>
+                <div class="text-[10px] text-slate-400">温かみ・自然</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- ハーモニー選択 -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-2">調和ルール (Harmony)</label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <button type="button" data-harmony="complementary" class="harmony-btn active px-3 py-1.5 rounded-lg border border-indigo-500 bg-indigo-600/20 text-indigo-300 font-medium text-left flex items-center justify-between">
+                <span>補色 (Contrast)</span>
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              </button>
+              <button type="button" data-harmony="analogous" class="harmony-btn px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left flex items-center justify-between">
+                <span>類似色 (Soft)</span>
+                <i data-lucide="check" class="w-3.5 h-3.5 hidden"></i>
+              </button>
+              <button type="button" data-harmony="triad" class="harmony-btn px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left flex items-center justify-between">
+                <span>トライアード (Triad)</span>
+                <i data-lucide="check" class="w-3.5 h-3.5 hidden"></i>
+              </button>
+              <button type="button" data-harmony="split" class="harmony-btn px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium text-left flex items-center justify-between">
+                <span>分裂補色 (Split)</span>
+                <i data-lucide="check" class="w-3.5 h-3.5 hidden"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ベースカラー明暗モード -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">ベースカラー背景トーン</label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <button type="button" id="base-tone-light" class="tone-btn active px-3 py-2 rounded-lg border border-indigo-500 bg-indigo-600/20 text-indigo-300 font-medium flex items-center justify-center gap-1.5">
+                <i data-lucide="sun" class="w-4 h-4"></i> ライト (推奨: 透過ホワイト基調)
+              </button>
+              <button type="button" id="base-tone-dark" class="tone-btn px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 font-medium flex items-center justify-center gap-1.5">
+                <i data-lucide="moon" class="w-4 h-4"></i> ダーク (深色トーン基調)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- プリセットクイックパレット -->
+        <div class="pt-3 border-t border-slate-800">
+          <label class="block text-xs font-medium text-slate-400 mb-2">クイックプリセット</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#2563EB" data-color="#2563EB" title="Corporate Blue"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#0D9488" data-color="#0D9488" title="Teal Brand"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#16A34A" data-color="#16A34A" title="Fresh Green"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#E11D48" data-color="#E11D48" title="Energetic Red"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#8B5CF6" data-color="#8B5CF6" title="Creative Purple"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#EA580C" data-color="#EA580C" title="Dynamic Orange"></button>
+            <button class="preset-pill w-7 h-7 rounded-full border-2 border-white/20 hover:scale-110 transition shadow" style="background:#334155" data-color="#334155" title="Slate Neutral"></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右：インタラクティブカラーホイール & 配色可視化 -->
+      <section class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+            <i data-lucide="disc" class="w-4 h-4 text-purple-400"></i>
+            カラーホイール
+          </h2>
+          <span class="text-xs text-slate-400">ドラッグまたはタップで色相/彩度を直感操作</span>
+        </div>
+
+        <div class="flex flex-col md:flex-row items-center justify-center gap-6 py-2">
+          <!-- Canvas Color Wheel -->
+          <div class="relative w-56 h-56 flex-shrink-0">
+            <canvas id="wheel-canvas" width="224" height="224" class="color-wheel-canvas shadow-2xl"></canvas>
+            <div id="wheel-pointer-main" class="absolute w-5 h-5 -ml-2.5 -mt-2.5 rounded-full border-2 border-white shadow pointer-events-none transition-transform" style="top:50%; left:50%; background: #3B82F6;"></div>
+            <div id="wheel-pointer-accent" class="absolute w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-slate-900 shadow pointer-events-none transition-transform" style="top:50%; left:50%; background: #F97316;"></div>
+          </div>
+
+          <!-- ガイド -->
+          <div class="flex-1 text-xs text-slate-300 space-y-2.5 bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <div class="font-semibold text-white flex items-center gap-1.5 border-b border-slate-800 pb-2">
+              <i data-lucide="info" class="w-4 h-4 text-sky-400"></i>
+              Web設計の70:25:5黄金則 & ティンテッドグレー
+            </div>
+            <ul class="space-y-1.5 text-slate-300 leading-relaxed">
+              <li><strong class="text-slate-100">70% ベース：</strong> 背景・余白。ムード設定に応じてメインカラーの色味を極微量ブレンド。</li>
+              <li><strong class="text-indigo-300">25% メイン：</strong> ヘッダーやブランドUI。全体の基調となる看板カラー。</li>
+              <li><strong class="text-amber-300">5% アクセント：</strong> CVボタンなど、ユーザーの視線を即座に奪うキーカラー。</li>
+              <li><strong class="text-emerald-300">フォント：</strong> WCAG準拠コントラストを自動計算し、視認性を担保。</li>
+              <li><strong class="text-slate-300">グレースケール：</strong> 純粋な無彩色ではなくメイン色相を薄く含ませることで、UI全体の「浮き」を無くしプロ水準の統一感を生みます。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- PDFエクスポート対象エリアのコンテナ -->
+    <div id="pdf-export-content" class="space-y-6 bg-slate-950 p-3 sm:p-5 rounded-2xl border border-slate-800">
+      
+      <!-- レポートヘッダー -->
+      <div class="border-b border-slate-800 pb-4 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-xl font-bold text-white tracking-tight">カラーパレット仕様書 (70:25:5 & Grayscale)</h2>
+            <span id="pdf-mood-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">Vibrant Mode</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">ブランドデザインシステム・WCAG コントラスト適合仕様書</p>
+        </div>
+        <div class="text-right text-xs text-slate-400">
+          <div>プロジェクト仕様: <span class="text-slate-200 font-medium">Web / UI Design</span></div>
+          <div>生成日時: <span id="export-timestamp" class="font-mono text-slate-300">2026/09/27</span></div>
+        </div>
+      </div>
+
+      <!-- 1. プロポーションバー (70% - 25% - 5%) -->
+      <section class="space-y-2">
+        <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <span>配色比率バランス (Visual Proportion Bar)</span>
+          <span class="font-mono text-slate-400">70% (Base) : 25% (Main) : 5% (Accent)</span>
+        </div>
+        <div class="h-14 w-full rounded-xl overflow-hidden flex shadow-lg border border-slate-700">
+          <div id="bar-base" class="h-full flex flex-col justify-center px-3 overflow-hidden text-left color-transition" style="width: 70%;">
+            <span class="text-xs font-bold truncate" id="bar-base-text">Base 70%</span>
+            <span class="text-[10px] font-mono opacity-80" id="bar-base-hex">#F8FAFC</span>
+          </div>
+          <div id="bar-main" class="h-full flex flex-col justify-center px-3 overflow-hidden text-left color-transition" style="width: 25%;">
+            <span class="text-xs font-bold text-white truncate" id="bar-main-text">Main 25%</span>
+            <span class="text-[10px] font-mono text-white/90" id="bar-main-hex">#3B82F6</span>
+          </div>
+          <div id="bar-accent" class="h-full flex flex-col justify-center px-2 overflow-hidden text-center color-transition" style="width: 5%;">
+            <span class="text-[10px] font-bold text-white truncate" id="bar-accent-text">5%</span>
+            <span class="text-[9px] font-mono text-white/90 truncate" id="bar-accent-hex">#F97316</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. パレットカード一覧 (5項目) -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        
+        <!-- 1. ベースカラー (70%) -->
+        <div class="bg-slate-900 rounded-xl p-3.5 border border-slate-800 shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-200">1. ベース (70%)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">余白/背景</span>
+            </div>
+            <div id="swatch-base" class="h-16 w-full rounded-lg mb-2.5 shadow-inner border border-slate-700 color-transition"></div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-400">HEX</span>
+                <span id="card-base-hex" class="font-bold text-white">#F8FAFC</span>
+              </div>
+              <div class="flex justify-between items-center py-0.5 text-[11px]">
+                <span class="text-slate-400">RGB</span>
+                <span id="card-base-rgb" class="text-slate-300">248, 250, 252</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="copyToClipboard(document.getElementById('card-base-hex').innerText)" class="mt-3 w-full py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center justify-center gap-1">
+            <i data-lucide="copy" class="w-3 h-3"></i> HEXコピー
+          </button>
+        </div>
+
+        <!-- 2. メインカラー (25%) -->
+        <div class="bg-slate-900 rounded-xl p-3.5 border border-slate-800 shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-200">2. メイン (25%)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-900">ブランド</span>
+            </div>
+            <div id="swatch-main" class="h-16 w-full rounded-lg mb-2.5 shadow-inner border border-slate-700 color-transition"></div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-400">HEX</span>
+                <span id="card-main-hex" class="font-bold text-white">#3B82F6</span>
+              </div>
+              <div class="flex justify-between items-center py-0.5 text-[11px]">
+                <span class="text-slate-400">RGB</span>
+                <span id="card-main-rgb" class="text-slate-300">59, 130, 246</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="copyToClipboard(document.getElementById('card-main-hex').innerText)" class="mt-3 w-full py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center justify-center gap-1">
+            <i data-lucide="copy" class="w-3 h-3"></i> HEXコピー
+          </button>
+        </div>
+
+        <!-- 3. アクセントカラー (5%) -->
+        <div class="bg-slate-900 rounded-xl p-3.5 border border-slate-800 shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-200">3. アクセント (5%)</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-900">CV/誘導</span>
+            </div>
+            <div id="swatch-accent" class="h-16 w-full rounded-lg mb-2.5 shadow-inner border border-slate-700 color-transition"></div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-400">HEX</span>
+                <span id="card-accent-hex" class="font-bold text-white">#F97316</span>
+              </div>
+              <div class="flex justify-between items-center py-0.5 text-[11px]">
+                <span class="text-slate-400">RGB</span>
+                <span id="card-accent-rgb" class="text-slate-300">249, 115, 22</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="copyToClipboard(document.getElementById('card-accent-hex').innerText)" class="mt-3 w-full py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center justify-center gap-1">
+            <i data-lucide="copy" class="w-3 h-3"></i> HEXコピー
+          </button>
+        </div>
+
+        <!-- 4. フォントカラー -->
+        <div class="bg-slate-900 rounded-xl p-3.5 border border-slate-800 shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-200">4. フォントカラー</span>
+              <span id="contrast-badge" class="text-[9px] px-1 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">WCAG AAA</span>
+            </div>
+            <div id="swatch-font" class="h-16 w-full rounded-lg mb-2.5 shadow-inner border border-slate-700 flex items-center justify-center font-bold text-xs color-transition">
+              本文テキスト例
+            </div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-400">HEX</span>
+                <span id="card-font-hex" class="font-bold text-white">#0F172A</span>
+              </div>
+              <div class="flex justify-between items-center py-0.5 text-[11px]">
+                <span class="text-slate-400">対比</span>
+                <span id="contrast-ratio-text" class="text-slate-300">14.2 : 1</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="copyToClipboard(document.getElementById('card-font-hex').innerText)" class="mt-3 w-full py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center justify-center gap-1">
+            <i data-lucide="copy" class="w-3 h-3"></i> HEXコピー
+          </button>
+        </div>
+
+        <!-- 5. メインカラー連動グレースケール (追加項目) -->
+        <div class="bg-slate-900 rounded-xl p-3.5 border border-slate-800 shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-200">5. ティンテッドグレー</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">連動無彩色</span>
+            </div>
+            <!-- メイングレースケール スウォッチ (3段階分割バー) -->
+            <div class="h-16 w-full rounded-lg mb-2.5 overflow-hidden flex border border-slate-700 shadow-inner">
+              <div id="swatch-gray-light" class="h-full flex-1 flex items-end justify-center pb-1 text-[9px] font-mono font-bold" title="Light Tint">L</div>
+              <div id="swatch-gray-mid" class="h-full flex-1 flex items-end justify-center pb-1 text-[9px] font-mono font-bold" title="Medium Tint">M</div>
+              <div id="swatch-gray-dark" class="h-full flex-1 flex items-end justify-center pb-1 text-[9px] font-mono font-bold text-white" title="Dark Tint">D</div>
+            </div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-400">Mid HEX</span>
+                <span id="card-gray-hex" class="font-bold text-white">#64748B</span>
+              </div>
+              <div class="flex justify-between items-center py-0.5 text-[10px]">
+                <span class="text-slate-400">Light / Dark</span>
+                <span id="card-gray-sub" class="text-slate-300">#E2E8F0 / #1E293B</span>
+              </div>
+            </div>
+          </div>
+          <button onclick="copyToClipboard(document.getElementById('card-gray-hex').innerText)" class="mt-3 w-full py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center justify-center gap-1">
+            <i data-lucide="copy" class="w-3 h-3"></i> 代表HEXコピー
+          </button>
+        </div>
+
+      </section>
+
+      <!-- 3. リアルタイム Web UI モックアップ -->
+      <section class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="layout" class="w-4 h-4 text-indigo-400"></i>
+            Webサイト適用プレビュー (UI Simulation)
+          </h3>
+          <span class="text-xs text-slate-400">全要素が指定比率 & ムードに合わせて即応連動</span>
+        </div>
+
+        <div class="rounded-xl overflow-hidden border border-slate-800 shadow-2xl bg-white">
+          <!-- ブラウザバー -->
+          <div class="bg-slate-900 px-4 py-2 flex items-center gap-2 border-b border-slate-800">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+            </div>
+            <div class="flex-1 max-w-xs mx-auto bg-slate-950 text-slate-400 text-[11px] px-3 py-0.5 rounded text-center font-mono truncate border border-slate-800">
+              https://design-system.preview/70-25-5
+            </div>
+          </div>
+
+          <!-- Webページ本体 (ベースカラーが背景 70%) -->
+          <div id="mock-page-container" class="p-6 md:p-8 color-transition">
+            
+            <!-- ナビゲーションバー (メインカラー 25%) -->
+            <div id="mock-nav" class="rounded-xl px-5 py-3.5 flex items-center justify-between shadow-md mb-6 color-transition">
+              <div class="flex items-center gap-2 font-bold text-base text-white">
+                <div class="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-white"></i>
+                </div>
+                <span>DesignSystem</span>
+              </div>
+              <div class="hidden sm:flex items-center gap-5 text-xs font-medium text-white/90">
+                <span class="hover:text-white cursor-pointer">特長</span>
+                <span class="hover:text-white cursor-pointer">料金体系</span>
+                <span class="hover:text-white cursor-pointer">導入事例</span>
+              </div>
+              <!-- ナビのアクセントCTAボタン (5%) -->
+              <button id="mock-nav-cta" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white shadow-md active:scale-95 transition color-transition flex items-center gap-1">
+                <span>登録する</span>
+                <i data-lucide="arrow-right" class="w-3 h-3"></i>
+              </button>
+            </div>
+
+            <!-- ヒーローセクション -->
+            <div class="max-w-2xl mx-auto text-center space-y-4 py-4">
+              
+              <!-- アクセントバッジ (5%) -->
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm color-transition" id="mock-hero-badge">
+                <i data-lucide="zap" class="w-3 h-3"></i>
+                <span id="mock-badge-text">Vibrant Mood Active</span>
+              </div>
+
+              <!-- メイン見出し (フォントカラー適用) -->
+              <h2 id="mock-headline" class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight color-transition">
+                比率とニュアンスで整える、<br class="hidden sm:inline">破綻のないデザインシステム
+              </h2>
+
+              <!-- 本文テキスト (フォントカラー適用) -->
+              <p id="mock-body" class="text-xs sm:text-sm leading-relaxed opacity-90 max-w-lg mx-auto color-transition">
+                ベース70%が心地よい空間を作り、メイン25%がブランドの信頼性を表現。計算されたティンテッドグレーが細部を引き締め、5%のアクセントがコンバージョンを促進します。
+              </p>
+
+              <!-- CTAボタングループ -->
+              <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button id="mock-primary-cta" class="px-5 py-2.5 rounded-lg font-bold text-xs text-white shadow-md active:scale-95 transition color-transition flex items-center gap-1.5">
+                  <i data-lucide="rocket" class="w-3.5 h-3.5"></i>
+                  無料トライアル開始 (5% Accent)
+                </button>
+                <button id="mock-secondary-cta" class="px-4 py-2.5 rounded-lg font-semibold text-xs border transition color-transition">
+                  資料ダウンロード
+                </button>
+              </div>
+            </div>
+
+            <!-- カードUIプレビュー (ティンテッドグレーとメイン色の協調) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-6 pt-5 border-t border-black/10">
+              <div id="mock-card-1" class="p-3.5 rounded-xl border bg-white/70 backdrop-blur-sm shadow-sm color-transition">
+                <div id="mock-card-icon-1" class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold mb-2 color-transition">01</div>
+                <h4 id="mock-card-title-1" class="font-bold text-xs mb-1 color-transition">余白の調和 (70%)</h4>
+                <p id="mock-card-desc-1" class="text-[11px] opacity-80 leading-relaxed color-transition">過度な刺激を抑え、可読性と視線移動の快適さを実現。</p>
+              </div>
+              <div id="mock-card-2" class="p-3.5 rounded-xl border bg-white/70 backdrop-blur-sm shadow-sm color-transition">
+                <div id="mock-card-icon-2" class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold mb-2 color-transition">02</div>
+                <h4 id="mock-card-title-2" class="font-bold text-xs mb-1 color-transition">統一グレースケール</h4>
+                <p id="mock-card-desc-2" class="text-[11px] opacity-80 leading-relaxed color-transition">メイン色相を薄く含めたボーダーやテキストで統一感を向上。</p>
+              </div>
+              <div id="mock-card-3" class="p-3.5 rounded-xl border bg-white/70 backdrop-blur-sm shadow-sm color-transition">
+                <div id="mock-card-icon-3" class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold mb-2 color-transition">03</div>
+                <h4 id="mock-card-title-3" class="font-bold text-xs mb-1 color-transition">確実な誘導 (5%)</h4>
+                <p id="mock-card-desc-3" class="text-[11px] opacity-80 leading-relaxed color-transition">重要なアクションボタンのみに限定しクリックスルー率を最大化。</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- フッター -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-5 text-center text-xs text-slate-500">
+    <p>© 2026 ColorScheme Studio | Webディレクション設計支援ツール (70:25:5 Rule)</p>
+  </footer>
+
+  <!-- コピートースト -->
+  <div id="toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 bg-slate-800 text-white border border-slate-700 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 pointer-events-none z-50">
+    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toast-message" class="text-xs font-medium">クリップボードにコピーしました</span>
+  </div>
+
+  <script>
+    /* ========================================================
+     * 1. 色彩演算コア・ユーティリティ
+     * ======================================================== */
+    
+    function hexToRgb(hex) {
+      hex = hex.replace(/^#/, '');
+      if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+      }
+      const num = parseInt(hex, 16);
+      return {
+        r: (num >> 16) & 255,
+        g: (num >> 8) & 255,
+        b: num & 255
+      };
+    }
+
+    function rgbToHex(r, g, b) {
+      const toHex = (n) => {
+        const h = Math.max(0, Math.min(255, Math.round(n))).toString(16);
+        return h.length === 1 ? '0' + h : h;
+      };
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+    }
+
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+
+      if (max === min) {
+        h = s = 0;
+      } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return {
+        h: Math.round(h * 360),
+        s: Math.round(s * 100),
+        l: Math.round(l * 100)
+      };
+    }
+
+    function hslToRgb(h, s, l) {
+      h = (h % 360 + 360) % 360 / 360;
+      s /= 100;
+      l /= 100;
+      let r, g, b;
+
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+      };
+    }
+
+    function getLuminance(r, g, b) {
+      const a = [r, g, b].map(v => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+    }
+
+    function getContrastRatio(hex1, hex2) {
+      const rgb1 = hexToRgb(hex1);
+      const rgb2 = hexToRgb(hex2);
+      const lum1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
+      const lum2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
+      const brightest = Math.max(lum1, lum2);
+      const darkest = Math.min(lum1, lum2);
+      return (brightest + 0.05) / (darkest + 0.05);
+    }
+
+    /* ========================================================
+     * STREAMING_CHUNK:Managing state with mood configuration
+     * ======================================================== */
+
+    const state = {
+      mainColor: '#3B82F6',
+      harmony: 'complementary',
+      mood: 'vibrant', // 'vibrant' | 'pastel' | 'monochrome' | 'luxury' | 'warm'
+      baseTone: 'light',
+      calculated: {
+        base: '#F8FAFC',
+        main: '#3B82F6',
+        accent: '#F97316',
+        font: '#0F172A',
+        gray: {
+          light: '#E2E8F0',
+          mid: '#64748B',
+          dark: '#1E293B'
+        },
+        contrast: 14.5
+      }
+    };
+
+    // ムード設定パラメータ定義
+    const MOOD_CONFIGS = {
+      vibrant: {
+        name: 'Vibrant Mode',
+        label: '鮮やか・クリア',
+        satFactor: 1.0,
+        lightFactor: 1.0,
+        accentSat: 92,
+        accentLight: 52,
+        baseTintSat: 20
+      },
+      pastel: {
+        name: 'Soft / Pastel Mode',
+        label: '柔らかなパステル・優しい印象',
+        satFactor: 0.65,
+        lightFactor: 1.15,
+        accentSat: 70,
+        accentLight: 65,
+        baseTintSat: 15
+      },
+      monochrome: {
+        name: 'Monochromatic Nuance',
+        label: '同系色・シック・ミニマル',
+        satFactor: 0.85,
+        lightFactor: 0.95,
+        accentSat: 90,
+        accentLight: 40, // 同系色のより深い色をアクセントにする
+        baseTintSat: 18,
+        forceMonoHue: true
+      },
+      luxury: {
+        name: 'Deep / Luxury Mode',
+        label: '深み・重厚・高級感',
+        satFactor: 0.75,
+        lightFactor: 0.80,
+        accentSat: 85,
+        accentLight: 48,
+        baseTintSat: 25
+      },
+      warm: {
+        name: 'Warm / Organic Mode',
+        label: '温かみ・オーガニック',
+        satFactor: 0.70,
+        lightFactor: 0.95,
+        accentSat: 80,
+        accentLight: 55,
+        baseTintSat: 22,
+        hueShiftToWarm: true
+      }
+    };
+
+    /* ========================================================
+     * STREAMING_CHUNK:Computing 70-25-5 and tinted grayscale
+     * ======================================================== */
+
+    function computeColorScheme() {
+      const config = MOOD_CONFIGS[state.mood] || MOOD_CONFIGS.vibrant;
+      
+      let mainRgb = hexToRgb(state.mainColor);
+      let mainHsl = rgbToHsl(mainRgb.r, mainRgb.g, mainRgb.b);
+
+      // ムードによる色相調整 (Warmの場合、暖色寄りへ少しシフト)
+      let effectiveMainHue = mainHsl.h;
+      if (config.hueShiftToWarm) {
+        // 暖色(30°付近)に10度寄せる
+        const diff = (30 - effectiveMainHue + 360) % 360;
+        effectiveMainHue = (effectiveMainHue + (diff > 180 ? -10 : 10) + 360) % 360;
+      }
+
+      // 1. アクセントカラー (5%)
+      let accentHue;
+      if (config.forceMonoHue) {
+        // モノクローム/同系色モードの場合は、メインと同色相で明度と彩度にコントラストをつける
+        accentHue = effectiveMainHue;
+      } else {
+        if (state.harmony === 'complementary') {
+          accentHue = (effectiveMainHue + 180) % 360;
+        } else if (state.harmony === 'analogous') {
+          accentHue = (effectiveMainHue + 40) % 360;
+        } else if (state.harmony === 'triad') {
+          accentHue = (effectiveMainHue + 120) % 360;
+        } else if (state.harmony === 'split') {
+          accentHue = (effectiveMainHue + 150) % 360;
+        }
+      }
+
+      const accentRgb = hslToRgb(accentHue, config.accentSat, config.accentLight);
+      const accentHex = rgbToHex(accentRgb.r, accentRgb.g, accentRgb.b);
+
+      // 2. ベースカラー (70%)
+      let baseHex;
+      if (state.baseTone === 'light') {
+        const baseLightness = state.mood === 'pastel' ? 98 : (state.mood === 'luxury' ? 95 : 97);
+        const baseRgb = hslToRgb(effectiveMainHue, config.baseTintSat, baseLightness);
+        baseHex = rgbToHex(baseRgb.r, baseRgb.g, baseRgb.b);
+      } else {
+        const baseLightness = state.mood === 'luxury' ? 7 : 10;
+        const baseRgb = hslToRgb(effectiveMainHue, config.baseTintSat + 10, baseLightness);
+        baseHex = rgbToHex(baseRgb.r, baseRgb.g, baseRgb.b);
+      }
+
+      // 3. フォントカラー (最大WCAGコントラスト)
+      const baseRgbVal = hexToRgb(baseHex);
+      const baseLuminance = getLuminance(baseRgbVal.r, baseRgbVal.g, baseRgbVal.b);
+
+      let fontHex;
+      if (baseLuminance > 0.4) {
+        fontHex = state.mood === 'luxury' ? '#05070B' : '#0F172A';
+      } else {
+        fontHex = '#F8FAFC';
+      }
+
+      const contrastRatio = getContrastRatio(baseHex, fontHex);
+
+      // 4. メインカラー連動グレースケール (ティンテッドグレー)
+      // メインの色相を保持しつつ彩度を 12〜16% 程度に絞った上質グレー
+      const grayTintSat = Math.max(10, Math.min(22, Math.round(mainHsl.s * 0.22)));
+      const grayLightRgb = hslToRgb(effectiveMainHue, grayTintSat, 92);
+      const grayMidRgb   = hslToRgb(effectiveMainHue, grayTintSat, 50);
+      const grayDarkRgb  = hslToRgb(effectiveMainHue, grayTintSat, 18);
+
+      state.calculated = {
+        base: baseHex,
+        main: state.mainColor,
+        accent: accentHex,
+        font: fontHex,
+        gray: {
+          light: rgbToHex(grayLightRgb.r, grayLightRgb.g, grayLightRgb.b),
+          mid: rgbToHex(grayMidRgb.r, grayMidRgb.g, grayMidRgb.b),
+          dark: rgbToHex(grayDarkRgb.r, grayDarkRgb.g, grayDarkRgb.b)
+        },
+        contrast: contrastRatio.toFixed(1)
+      };
+
+      updateDOM();
+      drawColorWheelPointers();
+    }
+
+    /* ========================================================
+     * STREAMING_CHUNK:Updating DOM elements and preview states
+     * ======================================================== */
+
+    function updateDOM() {
+      const { base, main, accent, font, gray, contrast } = state.calculated;
+      const currentMoodConfig = MOOD_CONFIGS[state.mood];
+
+      // バッジ表示更新
+      document.getElementById('current-mood-tag').innerText = currentMoodConfig.label;
+      document.getElementById('pdf-mood-badge').innerText = currentMoodConfig.name;
+      document.getElementById('mock-badge-text').innerText = `${currentMoodConfig.name} Active`;
+
+      // 入力同期
+      document.getElementById('main-color-picker').value = main;
+      document.getElementById('main-hex-input').value = main.replace('#', '');
+
+      // 1. プロポーションバー
+      const barBase = document.getElementById('bar-base');
+      barBase.style.backgroundColor = base;
+      barBase.style.color = font;
+      document.getElementById('bar-base-hex').innerText = base;
+
+      const barMain = document.getElementById('bar-main');
+      barMain.style.backgroundColor = main;
+      document.getElementById('bar-main-hex').innerText = main;
+
+      const barAccent = document.getElementById('bar-accent');
+      barAccent.style.backgroundColor = accent;
+      document.getElementById('bar-accent-hex').innerText = accent;
+
+      // 2. パレットカード更新
+      // ベース
+      document.getElementById('swatch-base').style.backgroundColor = base;
+      document.getElementById('card-base-hex').innerText = base;
+      const bRgb = hexToRgb(base);
+      document.getElementById('card-base-rgb').innerText = `${bRgb.r}, ${bRgb.g}, ${bRgb.b}`;
+
+      // メイン
+      document.getElementById('swatch-main').style.backgroundColor = main;
+      document.getElementById('card-main-hex').innerText = main;
+      const mRgb = hexToRgb(main);
+      document.getElementById('card-main-rgb').innerText = `${mRgb.r}, ${mRgb.g}, ${mRgb.b}`;
+
+      // アクセント
+      document.getElementById('swatch-accent').style.backgroundColor = accent;
+      document.getElementById('card-accent-hex').innerText = accent;
+      const aRgb = hexToRgb(accent);
+      document.getElementById('card-accent-rgb').innerText = `${aRgb.r}, ${aRgb.g}, ${aRgb.b}`;
+
+      // フォント
+      const swatchFont = document.getElementById('swatch-font');
+      swatchFont.style.backgroundColor = base;
+      swatchFont.style.color = font;
+      document.getElementById('card-font-hex').innerText = font;
+      document.getElementById('contrast-ratio-text').innerText = `${contrast} : 1`;
+
+      const contrastBadge = document.getElementById('contrast-badge');
+      if (contrast >= 7.0) {
+        contrastBadge.innerText = 'WCAG AAA';
+        contrastBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800';
+      } else if (contrast >= 4.5) {
+        contrastBadge.innerText = 'WCAG AA';
+        contrastBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800';
+      } else {
+        contrastBadge.innerText = 'WCAG 注意';
+        contrastBadge.className = 'text-[9px] px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800';
+      }
+
+      // 5. グレースケールカード
+      const gLight = document.getElementById('swatch-gray-light');
+      const gMid = document.getElementById('swatch-gray-mid');
+      const gDark = document.getElementById('swatch-gray-dark');
+
+      gLight.style.backgroundColor = gray.light;
+      gLight.style.color = gray.dark;
+      gMid.style.backgroundColor = gray.mid;
+      gMid.style.color = '#FFFFFF';
+      gDark.style.backgroundColor = gray.dark;
+
+      document.getElementById('card-gray-hex').innerText = gray.mid;
+      document.getElementById('card-gray-sub').innerText = `${gray.light} / ${gray.dark}`;
+
+      // 3. UIモックアップ
+      const mockContainer = document.getElementById('mock-page-container');
+      mockContainer.style.backgroundColor = base;
+      mockContainer.style.color = font;
+
+      const mockNav = document.getElementById('mock-nav');
+      mockNav.style.backgroundColor = main;
+
+      const mockNavCta = document.getElementById('mock-nav-cta');
+      mockNavCta.style.backgroundColor = accent;
+
+      const mockHeroBadge = document.getElementById('mock-hero-badge');
+      mockHeroBadge.style.backgroundColor = accent;
+
+      document.getElementById('mock-headline').style.color = font;
+      document.getElementById('mock-body').style.color = font;
+
+      const primaryCta = document.getElementById('mock-primary-cta');
+      primaryCta.style.backgroundColor = accent;
+
+      const secondaryCta = document.getElementById('mock-secondary-cta');
+      secondaryCta.style.borderColor = gray.mid;
+      secondaryCta.style.color = font;
+      secondaryCta.style.backgroundColor = gray.light + '40'; // 透過感
+
+      // カードUI（ティンテッドグレーと連動）
+      for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`mock-card-${i}`);
+        card.style.borderColor = gray.light;
+        
+        const icon = document.getElementById(`mock-card-icon-${i}`);
+        if (i === 3) {
+          icon.style.backgroundColor = accent;
+        } else if (i === 2) {
+          icon.style.backgroundColor = gray.mid;
+        } else {
+          icon.style.backgroundColor = main;
+        }
+        document.getElementById(`mock-card-title-${i}`).style.color = font;
+        document.getElementById(`mock-card-desc-${i}`).style.color = font;
+      }
+    }
+
+    /* ========================================================
+     * STREAMING_CHUNK:Drawing color wheel canvas and pointers
+     * ======================================================== */
+
+    const canvas = document.getElementById('wheel-canvas');
+    const ctx = canvas.getContext('2d');
+    const radius = canvas.width / 2;
+
+    function renderColorWheel() {
+      const imgData = ctx.createImageData(canvas.width, canvas.height);
+      const data = imgData.data;
+
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const dx = x - radius;
+          const dy = y - radius;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance <= radius) {
+            let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+            if (angle < 0) angle += 360;
+
+            const sat = (distance / radius) * 100;
+            const rgb = hslToRgb(angle, sat, 50);
+
+            const index = (y * canvas.width + x) * 4;
+            data[index] = rgb.r;
+            data[index + 1] = rgb.g;
+            data[index + 2] = rgb.b;
+            data[index + 3] = 255;
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function drawColorWheelPointers() {
+      const mainHsl = rgbToHsl(...Object.values(hexToRgb(state.mainColor)));
+      const accentHsl = rgbToHsl(...Object.values(hexToRgb(state.calculated.accent)));
+
+      const setPointer = (elem, hsl) => {
+        const rad = (hsl.h - 90) * (Math.PI / 180);
+        const dist = (hsl.s / 100) * (radius - 4);
+        const x = radius + dist * Math.cos(rad);
+        const y = radius + dist * Math.sin(rad);
+
+        elem.style.transform = `translate(${x - radius}px, ${y - radius}px)`;
+        const rgb = hslToRgb(hsl.h, hsl.s, 50);
+        elem.style.backgroundColor = rgbToHex(rgb.r, rgb.g, rgb.b);
+      };
+
+      setPointer(document.getElementById('wheel-pointer-main'), mainHsl);
+      setPointer(document.getElementById('wheel-pointer-accent'), accentHsl);
+    }
+
+    let isDraggingWheel = false;
+
+    function handleWheelInput(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const x = clientX - rect.left - radius;
+      const y = clientY - rect.top - radius;
+
+      const distance = Math.min(radius, Math.sqrt(x * x + y * y));
+      let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+      if (angle < 0) angle += 360;
+
+      const sat = Math.round((distance / radius) * 100);
+      const rgb = hslToRgb(angle, sat, 50);
+      state.mainColor = rgbToHex(rgb.r, rgb.g, rgb.b);
+      computeColorScheme();
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDraggingWheel = true;
+      handleWheelInput(e);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (isDraggingWheel) handleWheelInput(e);
+    });
+    window.addEventListener('mouseup', () => { isDraggingWheel = false; });
+
+    canvas.addEventListener('touchstart', (e) => {
+      isDraggingWheel = true;
+      handleWheelInput(e);
+    });
+    window.addEventListener('touchmove', (e) => {
+      if (isDraggingWheel) handleWheelInput(e);
+    });
+    window.addEventListener('touchend', () => { isDraggingWheel = false; });
+
+    /* ========================================================
+     * STREAMING_CHUNK:Binding UI controls, mood buttons, and PDF export
+     * ======================================================== */
+
+    // カラーピッカー・入力
+    document.getElementById('main-color-picker').addEventListener('input', (e) => {
+      state.mainColor = e.target.value.toUpperCase();
+      computeColorScheme();
+    });
+
+    document.getElementById('main-hex-input').addEventListener('input', (e) => {
+      let val = e.target.value.trim().replace('#', '');
+      if (/^[0-9A-Fa-f]{6}$/.test(val)) {
+        state.mainColor = '#' + val.toUpperCase();
+        computeColorScheme();
+      }
+    });
+
+    // ムード選択ボタン
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mood-btn').forEach(b => {
+          b.classList.remove('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+          b.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-300');
+          b.querySelector('i')?.classList.add('hidden');
+        });
+        btn.classList.add('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+        btn.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-300');
+        btn.querySelector('i')?.classList.remove('hidden');
+
+        state.mood = btn.getAttribute('data-mood');
+        computeColorScheme();
+      });
+    });
+
+    // 調和ルールボタン
+    document.querySelectorAll('.harmony-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.harmony-btn').forEach(b => {
+          b.classList.remove('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+          b.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-300');
+          b.querySelector('i')?.classList.add('hidden');
+        });
+        btn.classList.add('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+        btn.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-300');
+        btn.querySelector('i')?.classList.remove('hidden');
+
+        state.harmony = btn.getAttribute('data-harmony');
+        computeColorScheme();
+      });
+    });
+
+    // ベースカラートーン切り替え
+    const toneLightBtn = document.getElementById('base-tone-light');
+    const toneDarkBtn = document.getElementById('base-tone-dark');
+
+    toneLightBtn.addEventListener('click', () => {
+      state.baseTone = 'light';
+      toneLightBtn.classList.add('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+      toneLightBtn.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-300');
+      toneDarkBtn.classList.remove('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+      toneDarkBtn.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-300');
+      computeColorScheme();
+    });
+
+    toneDarkBtn.addEventListener('click', () => {
+      state.baseTone = 'dark';
+      toneDarkBtn.classList.add('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+      toneDarkBtn.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-300');
+      toneLightBtn.classList.remove('active', 'border-indigo-500', 'bg-indigo-600/20', 'text-indigo-300');
+      toneLightBtn.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-300');
+      computeColorScheme();
+    });
+
+    // プリセットピル
+    document.querySelectorAll('.preset-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        state.mainColor = pill.getAttribute('data-color');
+        computeColorScheme();
+      });
+    });
+
+    // ランダムボタン
+    document.getElementById('randomize-btn').addEventListener('click', () => {
+      const moods = ['vibrant', 'pastel', 'monochrome', 'luxury', 'warm'];
+      const pickMood = moods[Math.floor(Math.random() * moods.length)];
+      
+      const randomH = Math.floor(Math.random() * 360);
+      const randomS = 65 + Math.floor(Math.random() * 30);
+      const randomL = 40 + Math.floor(Math.random() * 20);
+      const rgb = hslToRgb(randomH, randomS, randomL);
+      state.mainColor = rgbToHex(rgb.r, rgb.g, rgb.b);
+
+      // ムードボタンの選択状態も更新
+      const targetMoodBtn = document.querySelector(`.mood-btn[data-mood="${pickMood}"]`);
+      if (targetMoodBtn) targetMoodBtn.click();
+      else computeColorScheme();
+
+      showToast(`ランダムカラー生成 (${pickMood})`);
+    });
+
+    // クリップボードコピー
+    function copyToClipboard(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast(`${text} をコピーしました`);
+      } catch (err) {
+        showToast('コピーに失敗しました');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-message').innerText = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2200);
+    }
+
+    // PDF出力
+    document.getElementById('export-pdf-btn').addEventListener('click', () => {
+      const exportElement = document.getElementById('pdf-export-content');
+      const now = new Date();
+      document.getElementById('export-timestamp').innerText = now.toLocaleString('ja-JP');
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: `ColorScheme_70-25-5_${state.mood}_${state.mainColor.replace('#', '')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#020617' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      showToast('PDF仕様書を生成中...');
+      html2pdf().set(opt).from(exportElement).save().then(() => {
+        showToast('PDFのダウンロードが完了しました');
+      }).catch(err => {
+        showToast('PDF生成中にエラーが発生しました');
+      });
+    });
+
+    window.onload = () => {
+      lucide.createIcons();
+      renderColorWheel();
+      computeColorScheme();
+    };
+  </script>
+</body>
+</html>
